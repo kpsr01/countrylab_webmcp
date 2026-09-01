@@ -1,4 +1,5 @@
 import { useGameStore } from '../store/useGameStore';
+import { isMetricChangeGood } from '../economy/metricSemantics';
 import { METRIC_PRESENTATION, selectMetricCards, selectMetricExplanation } from '../economy/visualState';
 
 function Sparkline({ values, good }: { values: number[]; good: boolean }) {
@@ -50,9 +51,7 @@ export function WhyInspector() {
   const highlighted = useGameStore((s) => s.highlightedMetric);
   const explanation = highlighted ? selectMetricExplanation(country, highlighted) : null;
   if (!explanation) return null;
-  const explanationDefinition = METRIC_PRESENTATION.find((metric) => metric.key === explanation.metric);
-  const higherIsBetter = explanationDefinition?.higherIsBetter ?? true;
-  const explanationIsGood = (explanation.delta >= 0) === higherIsBetter;
+  const explanationIsGood = isMetricChangeGood(explanation.metric, explanation.delta);
   return (
     <section className="why-panel" aria-label={`Why ${explanation.label} changed`}>
       <div className="why-sidebar">
@@ -72,7 +71,7 @@ export function WhyInspector() {
               const event = eventRoot ? country.eventHistory.find((candidate) => candidate.id === eventRoot.slice(6)) : null;
               return <div className="causal-row" key={`${contributor.sourceType}-${contributor.sourceId}-${index}`}>
                 <span className="causal-index">{String(index + 1).padStart(2, '0')}</span>
-                <span className={`causal-dot ${((contributor.effect >= 0) === higherIsBetter) ? 'is-good' : 'is-bad'}`} />
+                <span className={`causal-dot ${isMetricChangeGood(explanation.metric, contributor.effect) ? 'is-good' : 'is-bad'}`} />
                 <div><strong>{contributor.description}</strong><small>{contributor.path.join(' → ')}</small></div>
                 {eventRoot && <button className="prove-cause-button" onClick={() => { if (event) useGameStore.getState().selectRegion(event.region); useGameStore.getState().proveIt(eventRoot.slice(6)); document.querySelector('.prove-it')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>PROVE IT ↗</button>}
                 <b>{contributor.effect >= 0 ? '+' : ''}{contributor.effect.toFixed(2)}</b>
