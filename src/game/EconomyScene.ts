@@ -338,7 +338,7 @@ export class EconomyScene extends Phaser.Scene {
   private buildMapChrome() {
     const top = this.add.graphics();
     top.fillStyle(0x061520, 0.88).fillRoundedRect(18, 16, 222, 49, 12);
-    top.lineStyle(1, 0xa8edf2, 0.12).strokeRoundedRect(18, 16, 222, 49, 12);
+    top.lineStyle(1, 0x8be6e5, 0.36).strokeRoundedRect(18, 16, 222, 49, 12);
     this.add.text(34, 27, 'LUMENIA · LIVE TERRAIN', { color: '#f4fbf4', fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold' });
     this.add.text(34, 44, 'Economic activity and regional impact', { color: '#8db2b6', fontFamily: 'Arial, sans-serif', fontSize: '10px' });
 
