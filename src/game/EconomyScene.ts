@@ -3,6 +3,7 @@ import { useGameStore } from '../store/useGameStore';
 import type { RegionId } from '../economy/types';
 import { REGION_PRESENTATION, WORLD_ENTITIES } from './worldModel';
 import { EVENT_PRESENTATION, selectWorldVisualState, type RegionVisualState } from '../economy/visualState';
+import { selectDisasterWorldPresentation, type DisasterRegionPresentation } from '../economy/disasterVisualState';
 import {
   planRoadRoute,
   sampleRoadRoute,
@@ -87,6 +88,10 @@ export class EconomyScene extends Phaser.Scene {
   private ship?: Phaser.GameObjects.Container;
   private factorySmoke?: Phaser.GameObjects.Container;
   private powerGlow?: Phaser.GameObjects.Arc;
+  private portCargo: Phaser.GameObjects.Graphics[] = [];
+  private farmCrops: Phaser.GameObjects.Graphics[] = [];
+  private bankWindows: Phaser.GameObjects.Graphics[] = [];
+  private factoryLights: Phaser.GameObjects.Graphics[] = [];
   private selectionPulse?: Phaser.GameObjects.Graphics;
   private worldReady = false;
 
@@ -186,6 +191,45 @@ export class EconomyScene extends Phaser.Scene {
     shipGraphic.fillStyle(0xe66c4b, 1).fillTriangle(-21, -4, 19, -4, 12, 6);
     shipGraphic.fillStyle(0x16384a, 1).fillRect(-7, -11, 12, 6);
     this.ship.add(shipGraphic);
+
+    this.portCargo = Array.from({ length: 10 }, (_, index) => {
+      const cargo = this.add.graphics();
+      const column = index % 5;
+      const row = Math.floor(index / 5);
+      const cargoX = 616 + column * 17 + row * 5;
+      const cargoY = 552 + row * 13 + (column % 2) * 2;
+      cargo.fillStyle(index % 3 === 0 ? 0xf1a15f : index % 3 === 1 ? 0x72c9cf : 0xe5d77a, 0.92)
+        .fillRoundedRect(cargoX, cargoY, 13, 9, 2);
+      cargo.lineStyle(1, 0x07131f, 0.46).strokeRoundedRect(cargoX, cargoY, 13, 9, 2);
+      return cargo;
+    });
+
+    this.farmCrops = Array.from({ length: 12 }, (_, index) => {
+      const crop = this.add.graphics();
+      const column = index % 6;
+      const row = Math.floor(index / 6);
+      const cropX = 670 + column * 25 + row * 8;
+      const cropY = 176 + row * 25 + (column % 2) * 5;
+      crop.lineStyle(2, 0x91d86c, 0.84).beginPath().moveTo(cropX, cropY + 8).lineTo(cropX, cropY).strokePath();
+      crop.fillStyle(0xbce979, 0.9).fillEllipse(cropX - 3, cropY + 2, 6, 3).fillEllipse(cropX + 3, cropY + 4, 6, 3);
+      return crop;
+    });
+
+    this.bankWindows = Array.from({ length: 8 }, (_, index) => {
+      const light = this.add.graphics();
+      const column = index % 4;
+      const row = Math.floor(index / 4);
+      light.fillStyle(0x9fe5d9, 0.82).fillRoundedRect(433 + column * 9, 302 + row * 9, 5, 5, 1);
+      return light;
+    });
+
+    this.factoryLights = Array.from({ length: 8 }, (_, index) => {
+      const light = this.add.graphics();
+      const column = index % 4;
+      const row = Math.floor(index / 4);
+      light.fillStyle(0xffca78, 0.84).fillRoundedRect(755 + column * 13, 360 + row * 11, 7, 5, 1);
+      return light;
+    });
 
     this.factorySmoke = this.add.container(795, 302).setData('entityId', 'ironworks-activity');
     [0, 1, 2].forEach((index) => {
@@ -351,57 +395,101 @@ export class EconomyScene extends Phaser.Scene {
     this.add.text(846, 34, 'DISRUPTED', { color: '#f4d19c', fontFamily: 'Arial, sans-serif', fontSize: '10px', fontStyle: 'bold' });
   }
 
-  private drawEventEffect(graphics: Phaser.GameObjects.Graphics, layout: RegionLayout, region: RegionVisualState) {
-    const mainEvent = region.events[0];
+  private drawEventEffect(
+    graphics: Phaser.GameObjects.Graphics,
+    layout: RegionLayout,
+    region: RegionVisualState,
+    presentation: DisasterRegionPresentation,
+  ) {
+    const mainEvent = presentation.mainEvent;
     if (!mainEvent) return;
     const { x, y, w, h } = layout.bounds;
     const color = EVENT_PRESENTATION[mainEvent.type].color;
-    const alpha = Math.min(0.34, 0.06 + mainEvent.intensity * 0.26);
+    const intensity = mainEvent.intensity;
+    const alpha = Math.min(0.31, 0.035 + intensity * 0.25);
     graphics.fillStyle(color, alpha).fillPoints(toPoints(layout.points), true);
 
     if (mainEvent.type === 'flood') {
-      graphics.lineStyle(2, 0x9eeeff, 0.68);
-      for (let row = 0; row < 5; row += 1) {
-        const waveY = y + h * (0.42 + row * 0.085);
+      graphics.lineStyle(2, 0x9eeeff, 0.28 + intensity * 0.5);
+      const rows = 1 + Math.round(intensity * 4);
+      for (let row = 0; row < rows; row += 1) {
+        const waveY = y + h * (0.47 + row * 0.075);
         graphics.beginPath().moveTo(x + w * 0.18, waveY).lineTo(x + w * 0.36, waveY - 5).lineTo(x + w * 0.54, waveY).lineTo(x + w * 0.72, waveY - 5).strokePath();
       }
     } else if (mainEvent.type === 'drought') {
-      graphics.lineStyle(2, 0xffd27a, 0.56);
-      for (let i = 0; i < 6; i += 1) {
+      graphics.lineStyle(2, 0xffd27a, 0.22 + intensity * 0.5);
+      const cracks = 2 + Math.round(intensity * 5);
+      for (let i = 0; i < cracks; i += 1) {
         const crackX = x + 70 + i * 52;
         const crackY = y + 92 + (i % 2) * 30;
         graphics.beginPath().moveTo(crackX, crackY).lineTo(crackX + 10, crackY + 13).lineTo(crackX + 2, crackY + 25).strokePath();
       }
     } else if (mainEvent.type === 'war') {
-      graphics.lineStyle(5, 0xff7770, 0.34);
-      for (let i = -2; i < 8; i += 1) graphics.beginPath().moveTo(x + i * 62, y + h).lineTo(x + 100 + i * 62, y).strokePath();
+      graphics.lineStyle(5, 0xff7770, 0.12 + intensity * 0.36);
+      const bands = 3 + Math.round(intensity * 5);
+      for (let i = -2; i < bands; i += 1) graphics.beginPath().moveTo(x + i * 62, y + h).lineTo(x + 100 + i * 62, y).strokePath();
     } else if (mainEvent.type === 'oil_shock' || mainEvent.type === 'banking_crisis') {
-      graphics.lineStyle(3, color, 0.65).strokeCircle(layout.anchor[0], layout.anchor[1] + 18, 34 + mainEvent.intensity * 18);
-      graphics.lineStyle(1, 0xffffff, 0.45).strokeCircle(layout.anchor[0], layout.anchor[1] + 18, 45 + mainEvent.intensity * 20);
+      graphics.lineStyle(3, color, 0.26 + intensity * 0.48).strokeCircle(layout.anchor[0], layout.anchor[1] + 18, 28 + intensity * 24);
+      graphics.lineStyle(1, 0xffffff, 0.16 + intensity * 0.34).strokeCircle(layout.anchor[0], layout.anchor[1] + 18, 40 + intensity * 26);
     } else if (mainEvent.type === 'productivity_boom') {
-      graphics.fillStyle(0xc8ffe0, 0.74);
-      for (let i = 0; i < 9; i += 1) graphics.fillCircle(x + 44 + ((i * 71) % Math.max(90, w - 70)), y + 48 + ((i * 43) % Math.max(70, h - 80)), 2 + (i % 2));
+      graphics.fillStyle(0xc8ffe0, 0.32 + intensity * 0.48);
+      const signals = 3 + Math.round(intensity * 8);
+      for (let i = 0; i < signals; i += 1) graphics.fillCircle(x + 44 + ((i * 71) % Math.max(90, w - 70)), y + 48 + ((i * 43) % Math.max(70, h - 80)), 2 + (i % 2));
     }
+
+    const segments = 6;
+    const activeSegments = Math.round(presentation.resourceLevel * segments);
+    const barX = x + w * 0.22;
+    const barY = y + h * 0.82;
+    const segmentW = Math.max(10, Math.min(22, w * 0.07));
+    for (let index = 0; index < segments; index += 1) {
+      const filled = index < activeSegments;
+      graphics.fillStyle(filled ? layout.accent : 0x2b3942, filled ? 0.7 : 0.42)
+        .fillRoundedRect(barX + index * (segmentW + 4), barY, segmentW, 5, 2);
+    }
+    if (presentation.disruption > 0.35) {
+      graphics.lineStyle(1, 0xffc270, 0.24 + presentation.disruption * 0.38)
+        .strokeRoundedRect(barX - 5, barY - 5, segments * (segmentW + 4) + 4, 15, 4);
+    }
+
+    if (!mainEvent.active && presentation.recoveryProgress > 0) {
+      graphics.lineStyle(2, 0x86e6bd, 0.18 + presentation.recoveryProgress * 0.38)
+        .strokePoints(toPoints(regionLayout[region.id].points), true);
+    }
+  }
+
+  private setDiscreteActivity(objects: Phaser.GameObjects.Graphics[], activity: number, lowAlpha = 0.08) {
+    objects.forEach((object, index) => {
+      const threshold = (index + 0.5) / objects.length;
+      object.setAlpha(activity >= threshold ? 0.92 : lowAlpha);
+    });
   }
 
   private syncWorldState() {
     if (!this.worldReady) return;
     const { country, selectedRegion, highlightedRegion } = useGameStore.getState();
     const visual = selectWorldVisualState(country);
+    const disaster = selectDisasterWorldPresentation(country);
     this.selectionPulse?.clear();
 
     regionOrder.forEach((id) => {
       const layout = regionLayout[id];
       const view = this.regionViews.get(id);
       const region = visual.regions[id];
-      if (!view || !region) return;
+      const presentation = disaster.regions[id];
+      if (!view || !region || !presentation) return;
       const isSelected = selectedRegion === id;
       const isHighlighted = highlightedRegion === id;
       const activeEvent = region.events.find((event) => event.active);
       const statusLabel = activeEvent
-        ? EVENT_PRESENTATION[activeEvent.type].label.toUpperCase()
-        : region.status === 'expanding' ? 'EXPANDING' : region.status === 'recovering' ? 'RECOVERING' : 'STABLE';
-      const statusColor = activeEvent ? 0xffbd75 : region.status === 'expanding' ? 0x77e6b2 : region.status === 'recovering' ? 0x8edbc8 : 0xa8dfc3;
+        ? presentation.phase === 'impact' ? 'IMPACT'
+          : presentation.phase === 'ongoing' ? EVENT_PRESENTATION[activeEvent.type].label.toUpperCase()
+            : presentation.phase === 'adapting' ? 'ADAPTING'
+              : EVENT_PRESENTATION[activeEvent.type].label.toUpperCase()
+        : presentation.phase === 'recovering' ? 'RECOVERING'
+          : region.status === 'expanding' ? 'EXPANDING'
+            : 'STABLE';
+      const statusColor = activeEvent ? 0xffbd75 : region.status === 'expanding' ? 0x77e6b2 : presentation.phase === 'recovering' ? 0x8edbc8 : 0xa8dfc3;
 
       view.outline.clear();
       if (isSelected || isHighlighted) {
@@ -414,7 +502,7 @@ export class EconomyScene extends Phaser.Scene {
       if (isSelected) this.selectionPulse?.lineStyle(8, 0xffda72, 0.18).strokePoints(toPoints(layout.points), true);
 
       view.effect.clear();
-      this.drawEventEffect(view.effect, layout, region);
+      this.drawEventEffect(view.effect, layout, region, presentation);
       view.badge.clear();
       view.badge.fillStyle(0x061520, 0.88).fillRoundedRect(layout.anchor[0] - 67, layout.anchor[1] - 19, 134, 43, 10);
       view.badge.lineStyle(1, isSelected ? 0xffdd7a : layout.accent, isSelected ? 0.9 : 0.52).strokeRoundedRect(layout.anchor[0] - 67, layout.anchor[1] - 19, 134, 43, 10);
@@ -423,15 +511,20 @@ export class EconomyScene extends Phaser.Scene {
       view.status.setText(`${statusLabel}  ·  ${region.health.toFixed(0)}%`).setColor(activeEvent ? '#ffd29a' : '#bfe5d8');
     });
 
-    this.trafficActivity = visual.activity.roadFreight;
+    this.trafficActivity = disaster.activity.roadFreight;
     this.roadVehicles.forEach((vehicle, index) => {
       const activityVisibility = Phaser.Math.Clamp((this.trafficActivity - vehicle.visibilityThreshold) * 2.6, 0, 1);
       vehicle.activityAlpha = (index < 4 ? 0.42 : 0.12) + activityVisibility * (index < 4 ? 0.58 : 0.88);
       vehicle.container.setScale(0.84 + this.trafficActivity * 0.18);
       this.positionRoadVehicle(vehicle);
     });
-    this.ship?.setAlpha(0.2 + visual.activity.shipping * 0.8).setScale(0.9 + visual.activity.shipping * 0.18);
-    this.factorySmoke?.setAlpha(0.08 + visual.activity.factory * 0.56);
-    this.powerGlow?.setAlpha(0.03 + visual.activity.power * 0.16);
+
+    this.ship?.setAlpha(0.08 + disaster.activity.shipping * 0.92).setScale(0.86 + disaster.activity.shipping * 0.22);
+    this.factorySmoke?.setAlpha(0.03 + disaster.activity.factory * 0.61);
+    this.powerGlow?.setAlpha(0.015 + disaster.activity.power * 0.18);
+    this.setDiscreteActivity(this.portCargo, disaster.activity.shipping, 0.035);
+    this.setDiscreteActivity(this.farmCrops, disaster.activity.agriculture, 0.05);
+    this.setDiscreteActivity(this.bankWindows, disaster.activity.finance, 0.04);
+    this.setDiscreteActivity(this.factoryLights, disaster.activity.factory, 0.04);
   }
 }
