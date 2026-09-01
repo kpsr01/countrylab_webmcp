@@ -4,7 +4,7 @@ import { planRoadRoute, sampleRoadRoute } from '../src/game/roadNetwork.ts';
 import { ROAD_TRAFFIC_PLAN } from '../src/game/trafficPlan.ts';
 
 test('visual traffic uses exactly one vehicle per direction on each painted corridor', () => {
-  assert.equal(ROAD_TRAFFIC_PLAN.length, 10);
+  assert.equal(ROAD_TRAFFIC_PLAN.length, 8);
   const byEdge = new Map<string, Array<{ direction: 1 | -1; canonicalPhase: number }>>();
 
   for (const definition of ROAD_TRAFFIC_PLAN) {
@@ -17,11 +17,13 @@ test('visual traffic uses exactly one vehicle per direction on each painted corr
     byEdge.set(traversal.edge.id, entries);
   }
 
-  assert.equal(byEdge.size, 5);
+  assert.equal(byEdge.size, 4);
   for (const [edgeId, entries] of byEdge) {
     assert.equal(entries.length, 2, `${edgeId} should have two vehicles total`);
     assert.deepEqual(new Set(entries.map((entry) => entry.direction)), new Set([1, -1]), `${edgeId} should have opposing traffic`);
-    assert.ok(Math.abs(entries[0].canonicalPhase - entries[1].canonicalPhase) >= 0.3, `${edgeId} vehicles should start well separated`);
+    assert.ok(Math.abs(entries[0].canonicalPhase - entries[1].canonicalPhase) >= 0.5, `${edgeId} vehicles should start well separated`);
+    const definitions = ROAD_TRAFFIC_PLAN.filter((definition) => planRoadRoute(definition.origin, definition.destination).traversals[0].edge.id === edgeId);
+    assert.equal(definitions[0].speed, definitions[1].speed, `${edgeId} opposing vehicles should keep matched speed`);
   }
 });
 
