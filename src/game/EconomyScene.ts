@@ -4,13 +4,13 @@ import type { RegionId } from '../economy/types';
 import { REGION_PRESENTATION, WORLD_ENTITIES } from './worldModel';
 import { EVENT_PRESENTATION, selectWorldVisualState, type RegionVisualState } from '../economy/visualState';
 import {
-  nextRoadDestination,
   planRoadRoute,
   sampleRoadRoute,
   type PlannedRoadRoute,
   type RoadNodeId,
   type RoadSample,
 } from './roadNetwork';
+import { ROAD_TRAFFIC_PLAN, type TrafficVehicleKind } from './trafficPlan';
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 660;
@@ -32,10 +32,9 @@ type RegionView = {
   label: Phaser.GameObjects.Text;
 };
 
-type VehicleKind = 'car' | 'truck' | 'bus' | 'van';
 type RoadVehicle = {
   container: Phaser.GameObjects.Container;
-  kind: VehicleKind;
+  kind: TrafficVehicleKind;
   origin: RoadNodeId;
   destination: RoadNodeId;
   route: PlannedRoadRoute;
@@ -45,8 +44,6 @@ type RoadVehicle = {
   laneOffset: number;
   visibilityThreshold: number;
   activityAlpha: number;
-  seed: number;
-  tripNumber: number;
   sample: RoadSample;
 };
 
@@ -205,38 +202,15 @@ export class EconomyScene extends Phaser.Scene {
   }
 
   private buildRoadTraffic() {
-    const traffic: Array<{
-      kind: VehicleKind;
-      color: number;
-      origin: RoadNodeId;
-      destination: RoadNodeId;
-      phase: number;
-      speed: number;
-      lane: number;
-      threshold: number;
-    }> = [
-      { kind: 'car', color: 0x4fd9ff, origin: 'farms', destination: 'capital', phase: 0.08, speed: 0.031, lane: 2.0, threshold: 0.04 },
-      { kind: 'van', color: 0xffd467, origin: 'capital', destination: 'farms', phase: 0.62, speed: 0.025, lane: 2.0, threshold: 0.12 },
-      { kind: 'car', color: 0xf46f6f, origin: 'capital', destination: 'industrial', phase: 0.14, speed: 0.034, lane: 2.0, threshold: 0.03 },
-      { kind: 'truck', color: 0xffb24f, origin: 'industrial', destination: 'capital', phase: 0.66, speed: 0.021, lane: 2.0, threshold: 0.16 },
-      { kind: 'truck', color: 0x79d7a9, origin: 'capital', destination: 'port', phase: 0.18, speed: 0.020, lane: 2.0, threshold: 0.05 },
-      { kind: 'car', color: 0xbda4ff, origin: 'port', destination: 'farms', phase: 0.58, speed: 0.030, lane: 2.0, threshold: 0.18 },
-      { kind: 'bus', color: 0xf4d260, origin: 'energy', destination: 'capital', phase: 0.26, speed: 0.019, lane: 2.1, threshold: 0.04 },
-      { kind: 'car', color: 0x77e6c2, origin: 'capital', destination: 'energy', phase: 0.76, speed: 0.032, lane: 2.0, threshold: 0.14 },
-      { kind: 'van', color: 0xe9eef0, origin: 'highlands', destination: 'industrial', phase: 0.34, speed: 0.024, lane: 1.9, threshold: 0.22 },
-      { kind: 'car', color: 0xff8e5d, origin: 'farms', destination: 'industrial', phase: 0.22, speed: 0.033, lane: 2.0, threshold: 0.08 },
-      { kind: 'truck', color: 0x65c6e8, origin: 'energy', destination: 'port', phase: 0.39, speed: 0.021, lane: 2.1, threshold: 0.27 },
-      { kind: 'car', color: 0xf47fa8, origin: 'port', destination: 'energy', phase: 0.80, speed: 0.029, lane: 2.0, threshold: 0.34 },
-      { kind: 'bus', color: 0x6ed0ff, origin: 'farms', destination: 'port', phase: 0.44, speed: 0.018, lane: 2.1, threshold: 0.10 },
-      { kind: 'van', color: 0xf2a6ff, origin: 'industrial', destination: 'highlands', phase: 0.28, speed: 0.025, lane: 1.9, threshold: 0.20 },
-      { kind: 'car', color: 0xb7ef70, origin: 'highlands', destination: 'capital', phase: 0.72, speed: 0.030, lane: 1.9, threshold: 0.12 },
-      { kind: 'truck', color: 0xe8e2d6, origin: 'port', destination: 'industrial', phase: 0.12, speed: 0.020, lane: 2.0, threshold: 0.29 },
-      { kind: 'car', color: 0xffd15c, origin: 'energy', destination: 'farms', phase: 0.54, speed: 0.031, lane: 2.0, threshold: 0.25 },
-      { kind: 'van', color: 0x8df0dc, origin: 'capital', destination: 'port', phase: 0.73, speed: 0.026, lane: 2.0, threshold: 0.31 },
-    ];
-
-    this.roadVehicles = traffic.map((definition, index) => {
+    this.roadVehicles = ROAD_TRAFFIC_PLAN.map((definition, index) => {
       const route = planRoadRoute(definition.origin, definition.destination);
+      // Traffic must never use a multi-edge semantic route: several authored
+      // corridors share a logical district name but do not meet at one painted
+      // pixel junction. Keeping every trip on one traced edge guarantees that
+      // vehicles cannot cut across terrain between those endpoints.
+      if (route.traversals.length !== 1) {
+        throw new Error(`Traffic route ${definition.origin} → ${definition.destination} is not a single painted corridor`);
+      }
       const container = this.createVehicleGraphic(definition.kind, definition.color)
         .setData('entityId', `road-vehicle-${String(index + 1).padStart(2, '0')}`)
         .setData('origin', definition.origin)
@@ -254,8 +228,6 @@ export class EconomyScene extends Phaser.Scene {
         laneOffset: definition.lane,
         visibilityThreshold: definition.threshold,
         activityAlpha: 1,
-        seed: index + 1,
-        tripNumber: 0,
         sample: sampleRoadRoute(route, route.length * definition.phase, definition.lane),
       };
       this.positionRoadVehicle(vehicle);
@@ -263,7 +235,7 @@ export class EconomyScene extends Phaser.Scene {
     });
   }
 
-  private createVehicleGraphic(kind: VehicleKind, color: number) {
+  private createVehicleGraphic(kind: TrafficVehicleKind, color: number) {
     const container = this.add.container(0, 0);
     const graphic = this.add.graphics();
     graphic.fillStyle(0x061018, 0.34).fillEllipse(1, 1, kind === 'truck' || kind === 'bus' ? 23 : 17, 10);
@@ -311,9 +283,11 @@ export class EconomyScene extends Phaser.Scene {
   }
 
   private beginNextVehicleTrip(vehicle: RoadVehicle) {
+    // Reverse on the same painted corridor. At distance 0 the endpoint fade is
+    // fully transparent, so the 180° turn happens invisibly with no teleport.
+    const previousOrigin = vehicle.origin;
     vehicle.origin = vehicle.destination;
-    vehicle.tripNumber += 1;
-    vehicle.destination = nextRoadDestination(vehicle.origin, vehicle.seed, vehicle.tripNumber);
+    vehicle.destination = previousOrigin;
     vehicle.route = planRoadRoute(vehicle.origin, vehicle.destination);
     vehicle.distance = 0;
     vehicle.actualSpeed = Math.min(vehicle.actualSpeed, vehicle.baseSpeed * 0.55);
@@ -324,8 +298,9 @@ export class EconomyScene extends Phaser.Scene {
     if (!this.worldReady || !this.motionEnabled) return;
     const activitySpeed = 0.42 + this.trafficActivity * 0.88;
 
-    // Cars on the same painted lane form a queue instead of overtaking or
-    // occupying the same position. Opposing traffic remains on its own lane.
+    // Fixed-corridor traffic cannot merge into unrelated routes. This queue
+    // guard still prevents any same-direction vehicles from overlapping if the
+    // traffic plan is expanded later; opposing traffic remains in its own lane.
     const laneGroups = new Map<string, RoadVehicle[]>();
     this.roadVehicles.forEach((vehicle) => {
       this.positionRoadVehicle(vehicle);
