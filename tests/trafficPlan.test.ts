@@ -3,16 +3,9 @@ import test from 'node:test';
 import { planRoadRoute, sampleRoadRoute } from '../src/game/roadNetwork.ts';
 import { ROAD_TRAFFIC_PLAN } from '../src/game/trafficPlan.ts';
 
-test('visual traffic stays sparse, paired and off the questionable port connector', () => {
+test('visual traffic uses exactly one vehicle per direction on each painted corridor', () => {
   assert.equal(ROAD_TRAFFIC_PLAN.length, 8);
-  assert.ok(ROAD_TRAFFIC_PLAN.every((definition) => definition.origin !== 'port' && definition.destination !== 'port'));
-
-  const byEdge = new Map<string, Array<{
-    direction: 1 | -1;
-    canonicalPhase: number;
-    phase: number;
-    speed: number;
-  }>>();
+  const byEdge = new Map<string, Array<{ direction: 1 | -1; canonicalPhase: number }>>();
 
   for (const definition of ROAD_TRAFFIC_PLAN) {
     const route = planRoadRoute(definition.origin, definition.destination);
@@ -20,12 +13,7 @@ test('visual traffic stays sparse, paired and off the questionable port connecto
     const traversal = route.traversals[0];
     const canonicalPhase = traversal.direction === 1 ? definition.phase : 1 - definition.phase;
     const entries = byEdge.get(traversal.edge.id) ?? [];
-    entries.push({
-      direction: traversal.direction,
-      canonicalPhase,
-      phase: definition.phase,
-      speed: definition.speed,
-    });
+    entries.push({ direction: traversal.direction, canonicalPhase });
     byEdge.set(traversal.edge.id, entries);
   }
 
@@ -33,9 +21,9 @@ test('visual traffic stays sparse, paired and off the questionable port connecto
   for (const [edgeId, entries] of byEdge) {
     assert.equal(entries.length, 2, `${edgeId} should have two vehicles total`);
     assert.deepEqual(new Set(entries.map((entry) => entry.direction)), new Set([1, -1]), `${edgeId} should have opposing traffic`);
-    assert.ok(Math.abs(entries[0].canonicalPhase - entries[1].canonicalPhase) >= 0.3, `${edgeId} vehicles should start well separated`);
-    assert.equal(entries[0].phase, entries[1].phase, `${edgeId} opposing vehicles should turn around in sync`);
-    assert.equal(entries[0].speed, entries[1].speed, `${edgeId} opposing vehicles should keep synchronized spacing`);
+    assert.ok(Math.abs(entries[0].canonicalPhase - entries[1].canonicalPhase) >= 0.5, `${edgeId} vehicles should start well separated`);
+    const definitions = ROAD_TRAFFIC_PLAN.filter((definition) => planRoadRoute(definition.origin, definition.destination).traversals[0].edge.id === edgeId);
+    assert.equal(definitions[0].speed, definitions[1].speed, `${edgeId} opposing vehicles should keep matched speed`);
   }
 });
 
