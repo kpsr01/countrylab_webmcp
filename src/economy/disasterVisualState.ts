@@ -49,7 +49,9 @@ function eventPhase(country: CountryState, eventId: string, active: boolean, rec
   const event = country.eventHistory.find((candidate) => candidate.id === eventId);
   if (!event) return recoveryProgress > 0 ? 'recovering' : 'stable';
   if (!active) return recoveryProgress > 0 ? 'recovering' : 'stable';
-  const elapsed = Math.max(0, event.durationMonths - event.monthsRemaining);
+  const liveEvent = country.activeEvents.find((candidate) => candidate.id === eventId);
+  const monthsRemaining = liveEvent?.monthsRemaining ?? event.monthsRemaining;
+  const elapsed = Math.max(0, event.durationMonths - monthsRemaining);
   const progress = clamp01(elapsed / Math.max(1, event.durationMonths));
   if (progress < 0.2) return 'impact';
   if (progress < 0.62) return 'ongoing';
