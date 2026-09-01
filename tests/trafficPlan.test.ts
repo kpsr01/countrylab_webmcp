@@ -4,7 +4,7 @@ import { planRoadRoute, sampleRoadRoute } from '../src/game/roadNetwork.ts';
 import { ROAD_TRAFFIC_PLAN } from '../src/game/trafficPlan.ts';
 
 test('visual traffic uses exactly one vehicle per direction on each painted corridor', () => {
-  assert.equal(ROAD_TRAFFIC_PLAN.length, 8);
+  assert.equal(ROAD_TRAFFIC_PLAN.length, 10);
   const byEdge = new Map<string, Array<{ direction: 1 | -1; canonicalPhase: number }>>();
 
   for (const definition of ROAD_TRAFFIC_PLAN) {
@@ -17,7 +17,7 @@ test('visual traffic uses exactly one vehicle per direction on each painted corr
     byEdge.set(traversal.edge.id, entries);
   }
 
-  assert.equal(byEdge.size, 4);
+  assert.equal(byEdge.size, 5);
   for (const [edgeId, entries] of byEdge) {
     assert.equal(entries.length, 2, `${edgeId} should have two vehicles total`);
     assert.deepEqual(new Set(entries.map((entry) => entry.direction)), new Set([1, -1]), `${edgeId} should have opposing traffic`);
