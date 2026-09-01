@@ -14,9 +14,9 @@ export type RoadTrafficDefinition = {
 };
 
 /**
- * Sparse visual traffic stays on four corridors that were traced directly over
- * unambiguous painted roads in the rendered 960 x 660 map. Each corridor gets
- * one vehicle in each direction with matched phase/speed, so the pair stays
+ * Sparse visual traffic stays on five corridors that were traced directly over
+ * the painted roads in the rendered 960 x 660 map. Each corridor gets one
+ * vehicle in each direction with matched phase/speed, so opposing traffic stays
  * separated instead of collecting at a shared endpoint.
  */
 export const ROAD_TRAFFIC_PLAN: readonly RoadTrafficDefinition[] = [
@@ -26,6 +26,8 @@ export const ROAD_TRAFFIC_PLAN: readonly RoadTrafficDefinition[] = [
   { kind: 'car', color: 0x77e6c2, origin: 'capital', destination: 'energy', phase: 0.25, speed: 0.021, lane: 2.8, threshold: 0.18 },
   { kind: 'truck', color: 0xffb24f, origin: 'farms', destination: 'industrial', phase: 0.20, speed: 0.024, lane: 2.8, threshold: 0.05 },
   { kind: 'van', color: 0xe9eef0, origin: 'industrial', destination: 'farms', phase: 0.20, speed: 0.024, lane: 2.8, threshold: 0.15 },
-  { kind: 'truck', color: 0x79d7a9, origin: 'capital', destination: 'port', phase: 0.25, speed: 0.018, lane: 2.8, threshold: 0.08 },
+  { kind: 'car', color: 0xf46f6f, origin: 'capital', destination: 'industrial', phase: 0.22, speed: 0.023, lane: 2.8, threshold: 0.08 },
+  { kind: 'van', color: 0xf2a6ff, origin: 'industrial', destination: 'capital', phase: 0.22, speed: 0.023, lane: 2.8, threshold: 0.20 },
+  { kind: 'truck', color: 0x79d7a9, origin: 'capital', destination: 'port', phase: 0.25, speed: 0.018, lane: 2.8, threshold: 0.10 },
   { kind: 'bus', color: 0x6ed0ff, origin: 'port', destination: 'capital', phase: 0.25, speed: 0.018, lane: 2.8, threshold: 0.28 },
 ];
