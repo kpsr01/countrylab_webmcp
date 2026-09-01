@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
+import { isMetricChangeGood } from '../economy/metricSemantics';
 import { EVENT_PRESENTATION, METRIC_PRESENTATION } from '../economy/visualState';
 import type { MetricKey, PolicyKey, RegionId, ScenarioIntervention, ScenarioComparisonResult } from '../economy/types';
 
@@ -38,16 +39,20 @@ function ComparisonResult({ result }: { result: ScenarioComparisonResult }) {
         {metricKeys.map((key) => {
           const metric = METRIC_PRESENTATION.find((item) => item.key === key);
           const difference = result.metricDifferences[key];
-          return <div className="comparison-metric" key={key}><small>{metric?.label ?? key}</small><div><b>{difference.baseline.toFixed(1)}{metric?.suffix}</b><span>→</span><b>{difference.counterfactual.toFixed(1)}{metric?.suffix}</b></div><strong className={difference.difference >= 0 ? 'diff-positive' : 'diff-negative'}>{difference.difference >= 0 ? '+' : ''}{difference.difference.toFixed(1)}{metric?.suffix}</strong></div>;
+          const differenceIsGood = isMetricChangeGood(key, difference.difference);
+          return <div className="comparison-metric" key={key}><small>{metric?.label ?? key}</small><div><b>{difference.baseline.toFixed(1)}{metric?.suffix}</b><span>→</span><b>{difference.counterfactual.toFixed(1)}{metric?.suffix}</b></div><strong className={differenceIsGood ? 'diff-positive' : 'diff-negative'}>{difference.difference >= 0 ? '+' : ''}{difference.difference.toFixed(1)}{metric?.suffix}</strong></div>;
         })}
       </div>
       <div className="comparison-section">
         <div className="comparison-section-heading"><h4>Timeline divergence</h4><span>{result.divergenceMonth ? `First difference · M${result.divergenceMonth}` : 'Timelines stayed aligned'}</span></div>
-        <div className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>Month</th><th>{result.baseline.label} · inflation</th><th>{result.counterfactual.label} · inflation</th><th>GDP difference</th></tr></thead><tbody>{rows.map((month) => { const baseline = month === baseMonth ? result.baseline.startState : baselineHistory.get(month); const counter = month === baseMonth ? result.counterfactual.startState : counterHistory.get(month); if (!baseline || !counter) return null; const baseMetrics = 'metrics' in baseline ? baseline.metrics : baseline; const counterMetrics = 'metrics' in counter ? counter.metrics : counter; const difference = counterMetrics.gdp - baseMetrics.gdp; return <tr className={result.divergenceMonth === month ? 'is-divergence' : ''} key={month}><th>M{month}</th><td>{baseMetrics.inflation.toFixed(1)}%</td><td>{counterMetrics.inflation.toFixed(1)}%</td><td className={difference >= 0 ? 'diff-positive' : 'diff-negative'}>{difference >= 0 ? '+' : ''}{difference.toFixed(1)}</td></tr>; })}</tbody></table></div>
+        <div className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>Month</th><th>{result.baseline.label} · inflation</th><th>{result.counterfactual.label} · inflation</th><th>GDP difference</th></tr></thead><tbody>{rows.map((month) => { const baseline = month === baseMonth ? result.baseline.startState : baselineHistory.get(month); const counter = month === baseMonth ? result.counterfactual.startState : counterHistory.get(month); if (!baseline || !counter) return null; const baseMetrics = 'metrics' in baseline ? baseline.metrics : baseline; const counterMetrics = 'metrics' in counter ? counter.metrics : counter; const difference = counterMetrics.gdp - baseMetrics.gdp; return <tr className={result.divergenceMonth === month ? 'is-divergence' : ''} key={month}><th>M{month}</th><td>{baseMetrics.inflation.toFixed(1)}%</td><td>{counterMetrics.inflation.toFixed(1)}%</td><td className={isMetricChangeGood('gdp', difference) ? 'diff-positive' : 'diff-negative'}>{difference >= 0 ? '+' : ''}{difference.toFixed(1)}</td></tr>; })}</tbody></table></div>
       </div>
       <div className="comparison-section">
         <div className="comparison-section-heading"><h4>Changed causal chains</h4><span>{result.causalDifferences.length} material changes</span></div>
-        {result.causalDifferences.length ? <div className="causal-difference-list">{result.causalDifferences.slice(0, 6).map((difference) => <article key={`${difference.metric}-${difference.root}`}><strong>{METRIC_PRESENTATION.find((metric) => metric.key === difference.metric)?.label ?? difference.metric}</strong><p>{difference.descriptions[0]}</p><small>{chainText((difference.counterfactualChains[0] ?? difference.baselineChains[0] ?? []), result)}</small><b className={difference.difference >= 0 ? 'diff-positive' : 'diff-negative'}>{difference.difference >= 0 ? '+' : ''}{difference.difference.toFixed(2)}</b></article>)}</div> : <p className="muted">No causal chain changed over this horizon.</p>}
+        {result.causalDifferences.length ? <div className="causal-difference-list">{result.causalDifferences.slice(0, 6).map((difference) => {
+          const differenceIsGood = isMetricChangeGood(difference.metric, difference.difference);
+          return <article key={`${difference.metric}-${difference.root}`}><strong>{METRIC_PRESENTATION.find((metric) => metric.key === difference.metric)?.label ?? difference.metric}</strong><p>{difference.descriptions[0]}</p><small>{chainText((difference.counterfactualChains[0] ?? difference.baselineChains[0] ?? []), result)}</small><b className={differenceIsGood ? 'diff-positive' : 'diff-negative'}>{difference.difference >= 0 ? '+' : ''}{difference.difference.toFixed(2)}</b></article>;
+        })}</div> : <p className="muted">No causal chain changed over this horizon.</p>}
       </div>
     </section>
   );
