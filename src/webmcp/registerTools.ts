@@ -16,6 +16,8 @@ const integerInRange = (value: number, min: number, max: number, key: string) =>
 const oneOf = <T extends string>(value: string, values: readonly T[], key: string): T => { if (!values.includes(value as T)) throw new Error(`Unsupported ${key} '${value}'.`); return value as T; };
 const short = (value: unknown) => { const text = JSON.stringify(value); return text && text.length > 240 ? `${text.slice(0, 237)}...` : text ?? 'No result'; };
 const normalizeEventId = (value: string) => value.startsWith('event:') ? value.slice('event:'.length) : value;
+type ToolExecutionOptions = { signal?: AbortSignal } | null | undefined;
+const resolveExecutionSignal = (options?: ToolExecutionOptions) => options?.signal ?? new AbortController().signal;
 
 function currentState() { return useGameStore.getState(); }
 function sourceSnapshot(snapshotId?: string) {
@@ -67,8 +69,8 @@ function comparisonSummary(comparison: ReturnType<typeof useGameStore.getState>[
   };
 }
 
-async function execute(name: ToolName, rawInput: unknown, options: { signal: AbortSignal }) {
-  if (options.signal.aborted) throw options.signal.reason ?? new Error('Tool execution was cancelled.');
+async function execute(name: ToolName, rawInput: unknown, signal: AbortSignal) {
+  if (signal.aborted) throw signal.reason ?? new Error('Tool execution was cancelled.');
   const input = asRecord(rawInput);
   const state = currentState();
   switch (name) {
@@ -145,7 +147,7 @@ async function execute(name: ToolName, rawInput: unknown, options: { signal: Abo
         intervention = { kind: 'eventSeverity', eventId: resolved.eventId, severity: numberInRange(requiredNumber(input, 'severity'), 0.25, 2, 'severity') };
         counterfactualLabel = `${intervention.severity.toFixed(1)}× ${toAgentEventType(resolved.event.type).replaceAll('_', ' ')}`;
       } else throw new Error(`Unsupported counterfactual type '${type}'.`);
-      const comparison = state.runExperiment(intervention, months, source.id, { baseline: source.label, counterfactual: counterfactualLabel }, { signal: options.signal });
+      const comparison = state.runExperiment(intervention, months, source.id, { baseline: source.label, counterfactual: counterfactualLabel }, { signal });
       if (!comparison) throw new Error('The counterfactual could not be created.');
       return { success: true, action: name, ...comparisonSummary(comparison), liveCountryUnchanged: true };
     }
@@ -179,10 +181,11 @@ async function execute(name: ToolName, rawInput: unknown, options: { signal: Abo
   }
 }
 
-export async function executeWebMCPTool(name: ToolName, input: unknown = {}, options: { signal: AbortSignal } = { signal: new AbortController().signal }) {
+export async function executeWebMCPTool(name: ToolName, input: unknown = {}, options?: ToolExecutionOptions) {
   const started = performance.now();
+  const signal = resolveExecutionSignal(options);
   try {
-    const result = await execute(name, input, options);
+    const result = await execute(name, input, signal);
     recordWebMCPExecution({ name, input: asRecord(input), success: true, duration: Math.round(performance.now() - started), summary: short(result) });
     return result;
   } catch (error) {
