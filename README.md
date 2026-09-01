@@ -1,10 +1,83 @@
-# CountryLab — WebMCP economics sandbox
+# CountryLab — a shared economic laboratory for humans and agents
 
-CountryLab is a deterministic learning sandbox where a human and an AI agent can inspect and steer the same mini-country. The agent receives semantic economic state, investigates causal evidence, runs isolated counterfactuals, and can visibly show the explanation in the webpage.
+**Live:** https://countrylab.vercel.app  
+**WebMCP Challenge:** https://webmcp.devpost.com/  
+**License:** MIT
 
-> Core interaction: **human changes the world → agent observes → agent investigates WHY → agent experiments safely → webpage shows the proof**.
+CountryLab is a deterministic economic simulation where a human and an AI agent operate the same visible mini-country. A human can change policy, trigger shocks, inspect regions, and advance time. Through WebMCP, an agent can read the exact semantic state, investigate causal history, make explicitly requested live changes, run isolated counterfactual experiments, and show its evidence back in the webpage.
 
-## Run
+> **Human changes the world → agent observes → agent investigates why → agent tests the claim safely → the webpage shows the proof.**
+
+## Why WebMCP
+
+CountryLab is deliberately built around domain semantics that are unreliable to recover through ordinary browser automation. An agent should not need to infer economic values from pixels, reconstruct chronology from chart labels, or click through controls just to understand what happened.
+
+WebMCP gives the agent structured access to:
+
+- the current live country state;
+- stable region, sector, metric, event, snapshot, and comparison identifiers;
+- bounded metric/event history;
+- deterministic causal provenance;
+- explicit live-world mutations;
+- isolated counterfactual experiments; and
+- visible UI focus actions that return the agent's reasoning to the human interface.
+
+This creates a shared human-agent workflow rather than separate interfaces: human actions are immediately visible to the next agent read, and agent actions update the same application state the human sees.
+
+## Flagship workflow
+
+1. A human triggers a **Flood** in the **Port** and advances time.
+2. The agent investigates with read-only WebMCP tools.
+3. It identifies the deterministic chain from flood → trade/import disruption → supply pressure → inflation.
+4. The human asks the agent to prove the claim without changing the live country.
+5. CountryLab branches from the saved event-time checkpoint, removes only the selected flood, and replays later interventions into both timelines.
+6. The agent compares the deterministic outcomes and opens the visible **Prove It** comparison.
+7. The original **LIVE WORLD** remains unchanged.
+
+## WebMCP surface
+
+CountryLab exposes **17 semantic tools** through the imperative API:
+
+```ts
+document.modelContext.registerTool(tool, { signal });
+```
+
+### Observation — read only
+
+`get_country_state`, `inspect_region`, `inspect_sector`, `get_metric_history`, `get_event_history`, `get_causal_history`
+
+### Explicit live actions
+
+`change_policy`, `trigger_event`, `provide_emergency_response`, `advance_months`, `create_snapshot`
+
+### Isolated experiments
+
+`run_counterfactual`, `compare_scenarios`
+
+### Visible explanation
+
+`highlight_region`, `show_metric`, `show_causal_chain`, `show_scenario_comparison`
+
+Observation tools carry `readOnlyHint: true`. Live mutations are explicit in their names/descriptions. Counterfactuals operate on cloned scenario state and do not overwrite the live economy. UI tools change visible focus only.
+
+The execution boundary also tolerates clients that omit execution options while still honoring real `AbortSignal` cancellation when supplied.
+
+See [`docs/WEBMCP_TOOLS.md`](docs/WEBMCP_TOOLS.md) for the complete contract.
+
+## Architecture
+
+```text
+Human UI ─┐
+          ├── application service ── deterministic economy engine
+WebMCP ───┘          │
+                     └── shared Zustand state ── React + Phaser
+```
+
+Economic formulas live in the deterministic engine/application layer, not in WebMCP handlers or Phaser presentation code. That keeps human and agent behavior on one source of truth.
+
+## Run locally
+
+Requirements: Node.js 22.12+
 
 ```bash
 npm ci
@@ -13,118 +86,40 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-CountryLab works normally in browsers without WebMCP. Tools register only when `document.modelContext?.registerTool` is available.
+No API keys, credentials, backend services, or environment variables are required. CountryLab also works as a normal human-facing web app when WebMCP is unavailable; tool registration is progressive enhancement.
 
-## Interface
+## Verify
 
-The strategy-game interface is organized around the live country rather than around developer controls:
-
-- the illustrated Lumenia map is the visual centerpiece;
-- map districts expose stable simulation-backed IDs, selection, health, status, and active-event overlays;
-- freight, shipping, factory, and power activity respond to derived simulation state;
-- national telemetry opens the deterministic WHY inspector;
-- shocks and policies share a compact command center; and
-- the Prove It lab remains visibly separate from the live world.
-
-For a quick visual QA pass, load the Flooded Port preset, click each district, advance six months, open Inflation, and run PROVE IT. Repeat once at a narrow/mobile viewport.
-
-## Architecture
-
-```text
-Human UI ─┐
-          ├── Zustand actions ── application service ── deterministic economy engine
-WebMCP ───┘                                      │
-                                                └── React + Phaser render
+```bash
+npm run verify
 ```
 
-The WebMCP layer is a structured adapter. It does not contain economic formulas or duplicate simulation logic.
-
-## Tool surface
-
-There are 17 tools:
-
-- Observation: `get_country_state`, `inspect_region`, `inspect_sector`, `get_metric_history`, `get_event_history`, `get_causal_history`
-- Live actions: `change_policy`, `trigger_event`, `provide_emergency_response`, `advance_months`, `create_snapshot`
-- Isolated experiments: `run_counterfactual`, `compare_scenarios`
-- Event counterfactuals branch from saved event-time checkpoints and replay later live interventions at their original points in time, so comparisons can mean “same timeline except this event.”
-- Agent-facing event IDs are normalized (`event-1`) and reusable directly across read and experiment tools.
-- Visible explanation: `highlight_region`, `show_metric`, `show_causal_chain`, `show_scenario_comparison`
-
-Observation tools are marked with `readOnlyHint: true`. Live actions are explicit in their descriptions. Counterfactuals branch from a snapshot and do not overwrite live economic state. Visual tools change UI focus only.
-
-## Testing WebMCP
-
-The implementation uses the current imperative API:
-
-```ts
-document.modelContext.registerTool(tool, { signal });
-```
-
-It uses `execute(inputObject, { signal })`, the official `webmcp-types@0.1.5` declarations, and `AbortController` cleanup. There is no `navigator.modelContext` or public `unregisterTool()` usage.
-
-Current official references:
-
-- [WebMCP specification](https://webmachinelearning.github.io/webmcp/)
-- [Chrome Imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api)
-- [webmcp-types](https://www.npmjs.com/package/webmcp-types)
-
-For challenge testing, use ChatGPT's WebMCP-capable in-app browser or Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled. CountryLab capability-detects WebMCP, so unsupported browsers continue to run the human UI normally.
-
-## Local inspector
-
-Use the development-only inspector:
-
-```text
-http://localhost:5173/?webmcp-debug=1
-```
-
-It reports browser capability, expected definitions, registered names from `document.modelContext.getTools()` when available, schemas, manual handler output, and recent execution logs. The inspector is not shown on normal URLs.
-
-## Example agent workflows
-
-### Explain a shock
-
-```text
-get_country_state
-→ get_metric_history({ metric: "inflation", months: 12 })
-→ get_causal_history({ metric: "inflation", months: 12 })
-```
-
-### Change live policy
-
-```text
-change_policy({ policy: "interest_rate", value: 7 })
-→ advance_months({ months: 12 })
-→ show_metric({ metric: "unemployment" })
-```
-
-### Prove a causal claim without changing the country
-
-```text
-get_causal_history({ metric: "inflation" })
-→ run_counterfactual({ type: "remove_event", eventId, months: 12 })
-→ compare_scenarios({ baselineScenarioId, counterfactualScenarioId })
-→ show_scenario_comparison({ comparisonId })
-```
-
-A human can intervene manually between any calls. Subsequent reads see the same live state and WebMCP mutations immediately update the visible UI. Agent-facing event terminology is normalized (`trade_conflict` rather than the engine's internal `war` label).
-
-## Verification
+Equivalent explicit commands:
 
 ```bash
 npm run typecheck
 npm test
 npm run build
-# or: npm run verify
 ```
 
-Natural-language evaluation prompts and forbidden-tool expectations are in [`docs/WEBMCP_EVALS.md`](docs/WEBMCP_EVALS.md). The full tool contract and limitations are in [`docs/WEBMCP_TOOLS.md`](docs/WEBMCP_TOOLS.md).
+For browser/agent verification, follow [`docs/TESTING.md`](docs/TESTING.md). CountryLab has been exercised with ChatGPT's WebMCP-capable agent browser.
 
+A development-only inspector is available at:
 
-## Final submission QA
+```text
+http://localhost:5173/?webmcp-debug=1
+```
 
-Before submitting, run the real WebMCP browser-agent sequence in `docs/FINAL_WEBMCP_QA.md`. Automated tests validate tool semantics and counterfactual correctness, but browser-level discovery/permission UX must be checked in the actual WebMCP-capable surface.
+It shows capability status, expected definitions, browser-discovered tool names when available, schemas, handler output, and bounded execution logs.
 
+## Project notes
+
+- [`docs/ECONOMY_MODEL.md`](docs/ECONOMY_MODEL.md) — scope and causal-model assumptions.
+- [`docs/WEBMCP_TOOLS.md`](docs/WEBMCP_TOOLS.md) — tool contract and behavior.
+- [`docs/TESTING.md`](docs/TESTING.md) — concise judge/agent test path.
+- [`docs/ASSETS.md`](docs/ASSETS.md) — runtime artwork note.
+
+CountryLab is an educational toy causal model. It demonstrates transparent directional relationships and deterministic experimentation; it is **not** a real-world economic forecasting or policy-advice system.
 
 ## License
 
